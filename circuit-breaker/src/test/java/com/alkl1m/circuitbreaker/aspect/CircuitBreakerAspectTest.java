@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.stereotype.Service;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -29,7 +31,7 @@ class CircuitBreakerAspectTest {
     static class TestService {
         private boolean shouldFail = true;
 
-        @CircuitBreaker(failuteThreshold = 3, timeout = 1000)
+        @CircuitBreaker(failureThreshold = 3, timeout = 1000)
         public String execute() {
             if (shouldFail) {
                 throw new RuntimeException("Simulated failure");
@@ -55,30 +57,29 @@ class CircuitBreakerAspectTest {
     }
 
     @Test
-    void testCircuitBreaker_ResetsAfterTimeout() throws InterruptedException {
+    void testCircuitBreaker_ResetsAfterTimeout() {
         for (int i = 0; i < 3; i++) {
             assertThrows(RuntimeException.class, testService::execute);
         }
 
         testService.setShouldFail(false);
 
-        Thread.sleep(1500);
-
-        assertEquals("Success", testService.execute());
+        await().atMost(5, SECONDS).pollDelay(1, SECONDS).untilAsserted(() -> {
+            assertEquals("Success", testService.execute());
+        });
     }
 
     @Test
-    void testCircuitBreaker_HalfOpenStateFailure() throws InterruptedException {
+    void testCircuitBreaker_HalfOpenStateFailure() {
         testService.setShouldFail(true);
         for (int i = 0; i < 3; i++) {
             assertThrows(RuntimeException.class, testService::execute);
         }
 
-        Thread.sleep(5000);
-
-        assertThrows(RuntimeException.class, testService::execute);
+        await().atMost(2, SECONDS).untilAsserted(() -> {
+            assertThrows(RuntimeException.class, testService::execute);
+        });
 
         assertThrows(CircuitBreakerOpenException.class, testService::execute);
     }
-
 }
