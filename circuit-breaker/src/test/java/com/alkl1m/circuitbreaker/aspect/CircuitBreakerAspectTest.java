@@ -2,18 +2,19 @@ package com.alkl1m.circuitbreaker.aspect;
 
 import com.alkl1m.circuitbreaker.annotation.CircuitBreaker;
 import com.alkl1m.circuitbreaker.exception.CircuitBreakerOpenException;
-import com.alkl1m.circuitbreaker.util.CircuitBreakerTestConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.stereotype.Service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@SpringBootTest(classes = {CircuitBreakerAspectTest.TestConfig.class, CircuitBreakerTestConfiguration.class, CircuitBreakerAspect.class})
+@SpringBootTest(classes = {CircuitBreakerAspectTest.TestConfig.class, CircuitBreakerAspect.class})
+@EnableAspectJAutoProxy
 class CircuitBreakerAspectTest {
 
     @Configuration
@@ -79,4 +80,5 @@ class CircuitBreakerAspectTest {
 
         assertThrows(CircuitBreakerOpenException.class, testService::execute);
     }
+
 }
