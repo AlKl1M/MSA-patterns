@@ -16,7 +16,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -36,7 +38,7 @@ class BulkheadAspectTest {
             - Повторное использование после завершения предыдущих операций
             - Обработка таймаутов ожидания
             """)
-    void testBulkheadLimitsConcurrency_withValidData_worksCorrectly() throws Exception {
+    void testBulkheadLimitsConcurrency_withValidData_worksCorrectly() {
         CountDownLatch blockLatch = new CountDownLatch(1);
         testService.setLatch(blockLatch);
 
@@ -45,7 +47,8 @@ class BulkheadAspectTest {
         Future<String> future1 = executor.submit(() -> testService.bulkheadMethod());
         Future<String> future2 = executor.submit(() -> testService.bulkheadMethod());
 
-        Thread.sleep(500);
+        await().atMost(5, TimeUnit.SECONDS)
+                .until(() -> testService.getActiveThreads() == 2);
 
         Future<String> future3 = executor.submit(() -> testService.bulkheadMethod());
 
@@ -60,16 +63,20 @@ class BulkheadAspectTest {
         blockLatch.countDown();
 
         assertDoesNotThrow(() -> {
-            future1.get();
-            future2.get();
+            future1.get(5, TimeUnit.SECONDS);
+            future2.get(5, TimeUnit.SECONDS);
         });
 
         CountDownLatch newLatch = new CountDownLatch(1);
         testService.setLatch(newLatch);
 
         Future<String> future4 = executor.submit(() -> testService.bulkheadMethod());
-        Thread.sleep(500);
+
+        await().atMost(5, TimeUnit.SECONDS)
+                .until(() -> testService.getActiveThreads() == 1);
+
         Future<String> future5 = executor.submit(() -> testService.bulkheadMethod());
+
         assertThrows(BulkheadException.class, () -> {
             try {
                 future5.get(1500, TimeUnit.MILLISECONDS);
@@ -82,7 +89,7 @@ class BulkheadAspectTest {
         });
 
         newLatch.countDown();
-        future4.get();
+        assertDoesNotThrow(() -> future4.get(5, TimeUnit.SECONDS));
 
         executor.shutdown();
     }
@@ -90,16 +97,25 @@ class BulkheadAspectTest {
     @Service
     static class TestService {
         private CountDownLatch latch = new CountDownLatch(1);
+        private final AtomicInteger activeThreads = new AtomicInteger();
 
         @Bulkhead(maxConcurrentCalls = 2, timeoutMs = 1000)
         public String bulkheadMethod() throws InterruptedException {
-            latch.await();
-            return "Success";
+            activeThreads.incrementAndGet();
+            try {
+                latch.await();
+                return "Success";
+            } finally {
+                activeThreads.decrementAndGet();
+            }
         }
 
         public void setLatch(CountDownLatch latch) {
             this.latch = latch;
         }
-    }
 
+        public int getActiveThreads() {
+            return activeThreads.get();
+        }
+    }
 }
