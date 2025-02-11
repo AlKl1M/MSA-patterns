@@ -22,7 +22,7 @@ public @interface CircuitBreaker {
      *
      * @return значение порога ошибок (по умолчанию 3)
      */
-    int failuteThreshold() default 3;
+    int failureThreshold() default 3;
 
     /**
      * Максимальное время выполнения метода в миллисекундах до срабатывания таймаута.

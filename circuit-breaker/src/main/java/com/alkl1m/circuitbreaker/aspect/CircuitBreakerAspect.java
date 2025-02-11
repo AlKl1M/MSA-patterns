@@ -69,7 +69,7 @@ public class CircuitBreakerAspect {
         String methodName = joinPoint.getSignature().toLongString();
         CircuitBreakerState state = circuitStates.computeIfAbsent(methodName,
                 k -> new CircuitBreakerState(
-                        circuitBreaker.failuteThreshold(),
+                        circuitBreaker.failureThreshold(),
                         circuitBreaker.timeout()
                 ));
 
